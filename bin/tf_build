@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# fail fast
+set -e
+
+export TF_REPO=${TF_REPO:-hashicorp}
+export TF_BRANCH=${TF_BRANCH:-master}
+export TF_SRC_DIR=${TF_SRC_DIR:-/tmp/terraform}
+export XC_OS=${XC_OS:-darwin}
+export XC_ARCH=${XC_ARCH:-amd64}
+
+current_dir=$(pwd)
+devops_dir=$(cd $(dirname $0)/..; pwd)
+trap "cd ${current_dir}" EXIT
+
+if [[ -d $TF_SRC_DIR ]]; then
+  cd $TF_SRC_DIR && git fetch origin
+else
+  git clone git@github.com:${TF_REPO}/terraform.git $TF_SRC_DIR
+  cd $TF_SRC_DIR
+fi
+
+git checkout $TF_BRANCH
+
+while ! vagrant status | grep -q "The VM is running"; do
+  echo "Vagrant not running, trying to start"
+
+  if ! vagrant up; then
+    echo "Failed to start vagrant, you may need to install it and/or virtualbox"
+    exit 1
+  fi
+done
+
+tfsrc="/opt/gopath/src/github.com/hashicorp/terraform"
+
+echo "Building terraform binaries"
+vagrant ssh -c "make -C $tfsrc updatedeps"
+vagrant ssh -c "XC_OS='$XC_OS' XC_ARCH='$XC_ARCH' make -C $tfsrc bin"
+
+echo "Copying terraform binaries to devops"
+mkdir -p $devops_dir/bin/snapshot
+rsync -av ${TF_SRC_DIR}/pkg/${XC_OS}_${XC_ARCH}/ $devops_dir/bin/snapshot/

@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+
+# fail fast on any command that has an error exit code
+set -eE
+
+function usage {
+  echo "usage: $(basename $0) action [action arguments]"
+  echo
+  echo "  For example: $(basename $0) newclient"
+  echo
+  echo "  Subcommands:"
+  echo
+  echo "    newclient:      [client_name] create a new vpn client"
+  echo "    getclient:      [client_name] get client config"
+  echo "    revokeclient:   [client_name] revoke vpn client"
+  echo "    removeclient:   [client_name] remove vpn client"
+  echo "    listclient:     list all enabled vpn clients"
+  echo
+  exit 1
+}
+
+typeset -i debug=0
+
+while getopts ":d" opt; do
+  case $opt in
+    d)
+      debug=1
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      ;;
+  esac
+done
+shift $((OPTIND-1))
+
+if [[ $# < 1 ]]; then
+  usage
+fi
+
+action=$1; shift
+
+current_dir=$(pwd)
+trap "cd ${current_dir}" EXIT
+
+TF_ENV=${TF_ENV:-staging}
+devops_dir=$(cd $(dirname $0)/..; pwd)
+tf="${devops_dir}/bin/tf"
+
+source ${devops_dir}/bin/utils.sh
+
+discover_aws_credentials
+aws_assume_role $TF_ENV ops-admin
+aws_env
+
+keypath=$(get_tf_var aws_keypair_path)
+keypath="${keypath/#\~/$HOME}"
+vpnhost="vpn.$(get_tf_var domain)"
+passphrase=$(get_tf_var vpn_ca_passphrase)
+client_base_path="${devops_dir}/vpn_clients/${TF_ENV}-"
+
+function vpn_ssh {
+  ssh \
+    -t \
+    -i $keypath \
+    "ubuntu@$vpnhost" \
+    "$@"
+}
+
+function action_newclient {
+  client_name=$1
+  if [[ -z $client_name ]]; then usage; fi
+  mkdir -p $(dirname $client_base_path)
+
+  vpn_ssh \
+    PASSPHRASE="'$passphrase'" sudo -E /usr/local/bin/autovpnclient new $client_name | tee -a "${client_base_path}${client_name}.passphrase"
+}
+
+function action_getclient {
+  client_name=$1
+  if [[ -z $client_name ]]; then usage; fi
+  mkdir -p $(dirname $client_base_path)
+
+  vpn_ssh \
+    sudo -E /usr/local/bin/autovpnclient get $client_name > "${client_base_path}${client_name}.ovpn"
+
+  echo "Fetched client config to: ${client_base_path}${client_name}.ovpn"
+}
+
+function action_revokeclient {
+  client_name=$1
+  if [[ -z $client_name ]]; then usage; fi
+
+  vpn_ssh \
+    PASSPHRASE="'$passphrase'" sudo -E /usr/local/bin/autovpnclient revoke $client_name
+}
+
+function action_removeclient {
+  client_name=$1
+  if [[ -z $client_name ]]; then usage; fi
+
+  vpn_ssh \
+    sudo -E /usr/local/bin/autovpnclient remove $client_name
+}
+
+function action_listclient {
+  vpn_ssh \
+    sudo -E /usr/local/bin/autovpnclient list
+}
+
+
+if [[ "$(type -t action_$action)" = "function" ]]; then
+  eval action_$action "$@"
+else
+  echo "Unknown action: $action"
+  usage
+fi

@@ -1,0 +1,34 @@
+packages:
+  - apg
+  - expect
+
+runcmd:
+  - touch /usr/local/vpn_installed
+
+write_files:
+  - path: /usr/local/bin/autovpn
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${module_path}/files/autovpn"))}
+  - path: /usr/local/bin/autovpnclient
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${module_path}/files/autovpnclient"))}
+  - path: /usr/local/bin/vpnbootstrap
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${module_path}/files/vpnbootstrap"))}
+  - path: /usr/local/bin/vpnbackup
+    owner: root:root
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${module_path}/files/vpnbackup"))}
+  - path: /etc/cron.daily/vpnbackup
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      /usr/local/bin/vpnbackup ${backup_bucket} "$@"

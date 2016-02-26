@@ -1,0 +1,4 @@
+*secret.tfvars*
+*.tfstate*
+.terraform/
+vpn_clients/

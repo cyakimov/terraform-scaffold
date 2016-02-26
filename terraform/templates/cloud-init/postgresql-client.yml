@@ -1,0 +1,9 @@
+bootcmd:
+  - curl -s https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+
+apt_sources:
+  - source: "deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main"
+    filename: postgresql.list
+
+packages:
+  - postgresql-client

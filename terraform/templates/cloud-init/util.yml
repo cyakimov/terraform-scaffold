@@ -1,0 +1,10 @@
+package_upgrade: true
+
+packages:
+  - git
+  - vim
+  - curl
+  - python-pip
+
+runcmd:
+  - pip install awscli || python-pip install awscli

@@ -1,0 +1,7 @@
+apt_sources:
+  - source: "deb https://apt.dockerproject.org/repo ubuntu-trusty main"
+    keyid: 58118E89F3A912897C070ADBF76221572C52609D
+    filename: docker.list
+
+runcmd:
+  - apt-get install -qqy linux-image-extra-$(uname -r) docker-engine

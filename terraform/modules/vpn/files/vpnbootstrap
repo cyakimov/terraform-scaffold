@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# does nothing when no backups available
+/etc/cron.daily/vpnbackup restore
+
+if docker ps -a | grep -q ovpn-data; then
+  echo "ovpn-data already exists, skipping vpn config generation"
+
+  docker run \
+    --volumes-from ovpn-data \
+    --restart always \
+    --name openvpn \
+    -d \
+    -p 1194:1194/udp \
+    --cap-add=NET_ADMIN \
+    kylemanna/openvpn
+
+else
+  /usr/local/bin/autovpn "$@"
+fi

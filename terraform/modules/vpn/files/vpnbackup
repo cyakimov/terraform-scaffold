@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+if [[ $# == 0 ]]; then
+  echo "usage: $(basename $0) bucket [action=backup]"
+  echo "backup or restore to bucket"
+  exit 1
+fi
+
+bucket=$1
+action=$2
+
+if [[ "$action" == "restore" ]]; then
+
+  newest_backup=$(aws s3 ls s3://$bucket/vpn/ | grep openvpn | awk '{print $4}' | tail -n 1)
+  if [[ -z $newest_backup ]]; then
+    echo "No backups to restore"
+  else
+    echo "Restoring $newest_backup"
+    docker create -v /etc/openvpn --name ovpn-data busybox true
+    aws s3 cp s3://$bucket/vpn/$newest_backup - | \
+      docker run -i --rm --volumes-from ovpn-data busybox tar -C /etc/openvpn -xzf -
+  fi
+
+else
+
+  docker run --rm --volumes-from ovpn-data busybox tar -C /etc/openvpn -czf - . | \
+    aws s3 cp - s3://$bucket/vpn/openvpn-$(date +%F-%T).tgz --sse AES256
+  old_backups=$(aws s3 ls s3://$bucket/vpn/ | grep openvpn | awk '{print $4}' | head -n -7)
+  for backup in $old_backups; do
+    aws s3 rm s3://$bucket/vpn/$backup
+  done
+
+fi

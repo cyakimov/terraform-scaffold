@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+
+# fail fast
+set -eE
+
+function usage {
+  echo "Usage: TF_ENV=<env> $(basename $0) action" 1>&2
+  echo "Where action is:" 1>&2
+  echo "  bootstrap             sets up initial entities for an environment" 1>&2
+  echo "  secrets fetch|save    for updating secrets" 1>&2
+  echo "  state fetch|save      for manual tweaks to state file" 1>&2
+  echo "  <tf_action> [args]    calls through to terraform" 1>&2
+  exit 1
+}
+
+current_dir=$(pwd)
+trap "cd ${current_dir}" EXIT
+
+devops_dir=$(cd $(dirname $0)/..; pwd)
+source ${devops_dir}/bin/utils.sh
+
+export PATH=${devops_dir}/bin:${devops_dir}/bin/snapshot:$PATH
+
+if [[ $# == 0 ]]; then
+  usage
+fi
+
+if [[ -z $TF_ENV || ! -d $env_dir ]]; then
+  echo "The TF_ENV (=$TF_ENV) environment variable must be set" 1>&2
+  exit 1
+fi
+
+cd $env_dir
+
+aws_override=""
+if [[ -n $AWS_ACCESS_KEY_ID || -n $AWS_SECRET_ACCESS_KEY ]]; then
+  aws_override="true"
+fi
+
+script_action=$1; shift
+
+function setup_modules {
+    # Setup modules
+    terraform get
+}
+
+function setup_remote_config {
+  if [[ -z $TF_DISABLE_REMOTE ]]; then
+    terraform remote config \
+      -backend=S3 \
+      -backend-config="region=${aws_region}" \
+      -backend-config="bucket=$(tf_bucket_name)" \
+      -backend-config="key=${TF_ENV}/terraform.tfstate" \
+      -backend-config="encrypt=true" "$@"
+  fi
+}
+
+function tf_action {
+
+  action=$1; shift
+
+  if [[ -f ${secret_var_file} ]]; then
+    cmd="cat ${secret_var_file}"
+  else
+    cmd="manage_secrets display"
+  fi
+
+  case $action in
+    plan | apply | destroy)
+      terraform $action -var-file=<($cmd) "$@"
+      ;;
+    *)
+      terraform $action "$@"
+      ;;
+  esac
+
+}
+
+discover_aws_credentials
+
+case $script_action in
+
+  secrets)
+
+    direction=$1
+    if [[ -z $direction ]]; then usage; fi
+
+    aws_assume_role $TF_ENV ops-admin
+    aws_env
+
+    manage_secrets $direction
+
+    ;;
+
+  state)
+
+    direction=$1
+    if [[ -z $direction ]]; then usage; fi
+
+    aws_assume_role $TF_ENV ops-admin
+    aws_env
+
+    manage_state $direction
+
+    ;;
+
+  bootstrap)
+
+    if [[ ! $aws_override ]]; then
+      echo "Bootstrap requires credential override AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY" 1>&2
+      exit 1
+    fi
+
+    aws_env
+
+    # If we can't get remote state, disable failed remote state and proceed
+    # without it and it will get added at end of bootstrap - this lets bootstrap
+    # be idempotent for those times we need to re-run it
+    if ! setup_remote_config; then
+      rm -f .terraform/terraform.tfstate
+    fi
+
+    setup_modules
+
+    # Create the bootstrap entities (terraform iam user, s3 bucket for terraform
+    # state, etc), then configure remote storage with that state file to push
+    # bootstrapped state to s3
+
+    tf_action plan -module-depth=-1 -target null_resource.bootstrap
+
+    echo -n "Type 'yes' to continue bootstrap: " 1>&2
+    read cb
+    if [[ "$cb" != "yes" ]]; then
+      echo "Exiting" 1>&2
+      exit 1
+    fi
+
+    tf_action apply -target null_resource.bootstrap
+
+    setup_remote_config
+
+    ;;
+
+  *)
+
+    aws_assume_role $TF_ENV ops-admin
+    aws_env
+    setup_modules
+    setup_remote_config
+    tf_action $script_action "$@"
+
+    ;;
+
+esac

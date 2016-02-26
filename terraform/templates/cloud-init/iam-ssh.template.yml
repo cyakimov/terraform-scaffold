@@ -1,0 +1,87 @@
+write_files:
+  - path: /usr/local/bin/iamssh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+
+      if [[ $# == 0 ]]; then
+        echo "usage: $(basename $0) group_name"
+        echo "Outputs ssh public keys for all users in the given IAM group"
+        exit 1
+      fi
+
+      group=$1
+
+      users=$(
+        aws iam get-group --group-name $group | \
+          jq -r '.Users | map(.UserName) | join(" ")'
+      )
+
+      for user in $users; do
+
+        key_ids=$(
+          aws iam list-ssh-public-keys --user-name $user | \
+            jq -r '.SSHPublicKeys | map(.SSHPublicKeyId) | join(" ")'
+        )
+
+        for key_id in $key_ids; do
+
+          key=$(
+            aws iam get-ssh-public-key --user-name $user --ssh-public-key-id $key_id --encoding SSH | \
+              jq -r ".SSHPublicKey.SSHPublicKeyBody"
+          )
+
+          echo $key $user $key_id
+
+        done
+
+      done
+
+  - path: /usr/local/bin/assume_role
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      if [[ $# < 3 ]]; then
+        echo "usage: $(basename $0) account_id role_name command"
+        echo "Assumes the role in the given account"
+        exit 1
+      fi
+
+      account=$1; shift
+      role_name=$1; shift
+
+      role="arn:aws:iam::$account:role/$role_name"
+      aws_tmp=$(mktemp -t aws-XXXX.json)
+
+      aws sts assume-role --role-arn $role --role-session-name terraform > $aws_tmp
+
+      export AWS_DEFAULT_REGION=us-east-1
+      export AWS_ACCESS_KEY_ID=$(cat $aws_tmp | jq -r ".Credentials.AccessKeyId")
+      export AWS_SECRET_ACCESS_KEY=$(cat $aws_tmp | jq -r ".Credentials.SecretAccessKey")
+      export AWS_SESSION_TOKEN=$(cat $aws_tmp | jq -r ".Credentials.SessionToken")
+      export AWS_SESSION_EXPIRATION=$(cat $aws_tmp | jq -r ".Credentials.Expiration")
+
+      "$@"
+  - path: /etc/cron.hourly/iamssh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+
+      export PATH=$PATH:/usr/local/bin
+
+      auth_file="$(getent passwd ${login_user} | cut -d: -f6)/.ssh/authorized_keys"
+      if [[ ! -f $auth_file.orig ]]; then
+        cp -fp $auth_file $auth_file.orig
+      fi
+
+      cat $auth_file.orig > $auth_file
+      /usr/local/bin/assume_role ${ops_account} iam-inspect \
+        /usr/local/bin/iamssh ${iam_group} >> $auth_file
+
+runcmd:
+  - curl -L https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 -o /usr/local/bin/jq
+  - chmod +x /usr/local/bin/jq
+  - /etc/cron.hourly/iamssh

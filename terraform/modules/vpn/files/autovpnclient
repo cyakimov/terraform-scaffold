@@ -1,0 +1,97 @@
+#!/usr/bin/expect -f
+
+set timeout 120
+
+set action [lindex $argv 0]
+set clientname [lindex $argv 1]
+
+if { $action == "new"} {
+
+  set passphrase $env(PASSPHRASE)
+  set clientpass [exec apg -a0 -n1]
+
+  spawn docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    -it \
+    kylemanna/openvpn \
+    easyrsa build-client-full "$clientname"
+
+  expect {PEM pass phrase:}
+  send "$clientpass\r"
+
+  expect {PEM pass phrase:}
+  send "$clientpass\r"
+
+  expect {pass phrase*ca.key:}
+  send "$passphrase\r"
+
+  expect eof
+
+  puts "VPN client generated, passphrase is: $clientpass"
+
+} elseif { $action == "get" } {
+
+  puts [exec docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    -it \
+    kylemanna/openvpn \
+    ovpn_getclient "$clientname"]
+
+} elseif { $action == "revoke" } {
+
+  set passphrase $env(PASSPHRASE)
+
+  spawn -noecho docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    -it \
+    kylemanna/openvpn \
+    easyrsa revoke "$clientname"
+
+  expect {Continue with revocation: }
+  send "yes\r"
+
+  expect {pass phrase*ca.key:}
+  send "$passphrase\r"
+
+  expect eof
+
+  spawn -noecho docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    -it \
+    kylemanna/openvpn \
+    easyrsa gen-crl
+
+  expect {pass phrase*ca.key:}
+  send "$passphrase\r"
+
+  expect eof
+
+  puts [exec docker restart openvpn]
+
+} elseif { $action == "remove" } {
+
+  puts [exec docker exec openvpn rm /etc/openvpn/pki/*/${clientname}.*]
+  #remove matching files in pki/certs_by_serial/ ?
+  #remove from pki/index.txt ?
+
+  puts [exec docker restart openvpn]
+
+} elseif { $action == "list" } {
+
+  puts [exec docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    -it \
+    kylemanna/openvpn \
+    grep -v "^R" /etc/openvpn/pki/index.txt | cut -d= -f2]
+
+} else {
+
+  puts "Invalid action: $action"
+  exit 1
+
+}

@@ -1,0 +1,66 @@
+#!/usr/bin/expect -f
+
+set timeout 120
+
+set passphrase $env(PASSPHRASE)
+set vpnaddr [lindex $argv 0]
+set subnet [lindex $argv 1]
+set domain [lindex $argv 2]
+set dnsservers [split [lindex $argv 3] ","]
+
+# Initialize open vpn data container
+# https://hub.docker.com/r/kylemanna/openvpn/
+#
+spawn docker run \
+    --name ovpn-data \
+    -v /etc/openvpn busybox
+
+expect eof
+
+# Generate OpenVPN server config
+#
+set dnsargs {}
+foreach d $dnsservers {lappend dnsargs "-n $d"}
+set dnsargs [join $dnsargs " "]
+
+spawn docker run \
+    --volumes-from ovpn-data \
+    --rm \
+    kylemanna/openvpn \
+    ovpn_genconfig -u udp://$vpnaddr -s $subnet -p "dhcp-option DOMAIN $domain" $dnsargs
+
+expect eof
+
+# Setup OpenVPN certificates
+#
+spawn docker run \
+      --volumes-from ovpn-data \
+      --rm \
+      -it \
+      kylemanna/openvpn \
+      ovpn_initpki
+
+expect {pass phrase:}
+send "$passphrase\r"
+
+expect {pass phrase:}
+send "$passphrase\r"
+
+expect {Common Name*Easy-RSA CA*:}
+send "\r"
+
+expect {pass phrase*:}
+send "$passphrase\r"
+
+expect eof
+
+spawn docker run \
+  --volumes-from ovpn-data \
+  --restart always \
+  --name openvpn \
+  -d \
+  -p 1194:1194/udp \
+  --cap-add=NET_ADMIN \
+  kylemanna/openvpn
+
+expect eof

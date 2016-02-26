@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+if [[ $# < 1 ]]; then
+  echo "usage: $(basename $0) <env> [aws cmd]"
+  echo "  with an aws cmd, runs the command under the assumed role, e.g."
+  echo "    assume_role staging aws s3 ls"
+  echo "  with no aws cmd, produces lines suitable for evaling into local env, e.g."
+  echo "    eval $(assume_role staging)"
+  exit 1
+fi
+
+devops_dir=$(cd $(dirname $0)/..; pwd)
+source ${devops_dir}/bin/utils.sh
+
+env=$1; shift
+role=${1:-ops-admin}; shift
+
+unset AWS_DEFAULT_REGION \
+      AWS_ACCESS_KEY_ID \
+      AWS_SECRET_ACCESS_KEY \
+      AWS_SESSION_TOKEN \
+      AWS_SESSION_EXPIRATION
+
+discover_aws_credentials
+aws_assume_role $env $role
+
+if [[ $# > 0 ]]; then
+  AWS_DEFAULT_REGION="$aws_region" \
+    AWS_ACCESS_KEY_ID="$aws_key" \
+    AWS_SECRET_ACCESS_KEY="$aws_secret" \
+    AWS_SESSION_TOKEN="$aws_session_token" \
+    AWS_SESSION_EXPIRATION="$aws_session_expiration" \
+    "$@"
+else
+  echo export AWS_DEFAULT_REGION=\"$aws_region\"
+  echo export AWS_ACCESS_KEY_ID=\"$aws_key\"
+  echo export AWS_SECRET_ACCESS_KEY=\"$aws_secret\"
+  echo export AWS_SESSION_TOKEN=\"$aws_session_token\"
+  echo export AWS_SESSION_EXPIRATION=\"$aws_session_expiration\"
+fi
