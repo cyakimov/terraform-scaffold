@@ -17,7 +17,7 @@ resource "aws_elasticache_cluster" "app" {
   port = "${var.port}"
   num_cache_nodes = "${var.node_count}"
 
-  snapshot_retention_limit = 3
+  snapshot_retention_limit = "${var.snapshot_limit}"
 
   parameter_group_name = "${aws_elasticache_parameter_group.app.name}"
   subnet_group_name = "${aws_elasticache_subnet_group.app.name}"

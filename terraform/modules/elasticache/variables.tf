@@ -43,3 +43,8 @@ variable "node_count" {
   description = "The number of elasticache nodes"
   default = "1"
 }
+
+variable "snapshot_limit" {
+  description = "The number of elasticache snapshots to retain, only works for redis"
+  default = "0"
+}

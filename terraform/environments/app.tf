@@ -24,6 +24,7 @@ module "myapp-redis" {
   family = "redis2.8"
   engine = "redis"
   port = "6379"
+  snapshot_limit = 3
 }
 
 module "myapp-elb" {
