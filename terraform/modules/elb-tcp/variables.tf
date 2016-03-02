@@ -41,3 +41,23 @@ variable "logs_bucket" {
 variable "internal" {
   description = "Makes the ELB intenal facing (also need to set subnets to private, and zone to internal)"
 }
+
+variable "health_check_timeout" {
+  description = "Timeout when connecting to determine health"
+  default = 3
+}
+
+variable "health_check_interval" {
+  description = "Time period in secs between health checks"
+  default = 30
+}
+
+variable "health_check_unhealthy_threshold" {
+  description = "The number of health checks that need to fail before marking unhealthy"
+  default = 4
+}
+
+variable "health_check_healthy_threshold" {
+  description = "The number of health checks that need to pass before marking healthy"
+  default = 2
+}

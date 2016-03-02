@@ -34,11 +34,11 @@ resource "aws_elb" "app" {
   }
 
   health_check {
-    healthy_threshold = 2
-    unhealthy_threshold = 10
-    timeout = 3
+    healthy_threshold = "${var.health_check_healthy_threshold}"
+    unhealthy_threshold = "${var.health_check_unhealthy_threshold}"
+    timeout = "${var.health_check_timeout}"
+    interval = "${var.health_check_interval}"
     target = "TCP:${var.instance_port}"
-    interval = 5
   }
 
   tags {
