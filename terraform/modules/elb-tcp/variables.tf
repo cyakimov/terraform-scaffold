@@ -30,10 +30,6 @@ variable "security_groups_csv" {
   description = "The security groups associated with the instance"
 }
 
-variable "elb_certificate_arn" {
-  description = "The ssl certificate for the ELB instance"
-}
-
 variable "logs_bucket" {
   description = "The bucket to use for logging"
 }
