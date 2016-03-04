@@ -51,3 +51,8 @@ variable "db_password" {
   description = "The username for the database"
   default = "postgres"
 }
+
+variable "encrypted" {
+  description = "Turn on database encryption"
+  default = false
+}

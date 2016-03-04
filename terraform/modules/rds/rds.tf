@@ -67,7 +67,7 @@ resource "aws_db_instance" "app" {
   engine_version = "9.4.5"
   instance_class = "${var.db_instance_type}"
   allocated_storage = "${var.db_instance_storage}"
-  storage_encrypted = true
+  storage_encrypted = "${var.encrypted}"
   storage_type = "${var.db_instance_storage_type}"
 
   backup_retention_period = 3
