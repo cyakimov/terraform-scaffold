@@ -43,3 +43,13 @@ variable "app_container_count" {
   description = "The desired count of app containers"
   default = 2
 }
+
+variable "deployment_minimum_healthy_percent" {
+  description = "The minimum percent of nodes to keep up when deploying"
+  default = 100
+}
+
+variable "deployment_maximum_percent" {
+  description = "The maximum percent of nodes to spin up when deploying"
+  default = 200
+}

@@ -86,6 +86,8 @@ resource "aws_ecs_service" "app" {
   cluster = "${var.ecs_cluster_id}"
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count = "${var.app_container_count}"
+  deployment_minimum_healthy_percent = "${var.deployment_minimum_healthy_percent}"
+  deployment_maximum_percent = "${var.deployment_maximum_percent}"
 
   iam_role = "${aws_iam_role.ecs-service.id}"
   depends_on = ["aws_iam_role_policy.ecs-service"]
@@ -120,6 +122,8 @@ resource "aws_ecs_service" "app-no-lb" {
   cluster = "${var.ecs_cluster_id}"
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count = "${var.app_container_count}"
+  deployment_minimum_healthy_percent = "${var.deployment_minimum_healthy_percent}"
+  deployment_maximum_percent = "${var.deployment_maximum_percent}"
 
   // Prevent terraform from needing to make a change due to CI deploy
   // https://github.com/hashicorp/terraform/issues/4663
