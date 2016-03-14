@@ -62,3 +62,8 @@ variable "health_check_healthy_threshold" {
   description = "The number of health checks that need to pass before marking healthy"
   default = 2
 }
+
+variable "idle_timeout" {
+  description = "The time in seconds that the connection is allowed to be idle"
+  default = 60
+}

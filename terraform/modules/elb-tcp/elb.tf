@@ -19,6 +19,7 @@ resource "aws_elb" "app" {
 
   security_groups = ["${compact(split(",", var.security_groups_csv))}"]
 
+  idle_timeout = "${var.idle_timeout}"
 
   access_logs {
     bucket = "${var.logs_bucket}"
