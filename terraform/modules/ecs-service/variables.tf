@@ -54,6 +54,11 @@ variable "deployment_maximum_percent" {
   default = 200
 }
 
+variable "create_repository" {
+  description = "Enable creating an ECR repo"
+  default = 1
+}
+
 variable "sns_alarm_enable" {
   description = "Turn on utilization alarms"
   default = 0

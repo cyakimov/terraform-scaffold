@@ -47,6 +47,7 @@ POLICY
 }
 
 resource "aws_ecr_repository" "app" {
+  count = "${var.create_repository}"
   name = "${var.name_prefix}${var.name}"
 }
 
@@ -56,8 +57,8 @@ resource "template_file" "containers_template" {
   vars {
     environment = "${var.environment}"
     name = "${var.name_prefix}${var.name}"
-    registry_host = "${aws_ecr_repository.app.registry_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
-    repository_name = "${aws_ecr_repository.app.name}"
+    registry_host = "${element(aws_ecr_repository.app.*.registry_id, var.create_repository)}.dkr.ecr.${var.aws_region}.amazonaws.com"
+    repository_name = "${element(aws_ecr_repository.app.*.name, var.create_repository)}"
     app_port = "${var.app_port}"
     instance_port = "${var.instance_port}"
   }
