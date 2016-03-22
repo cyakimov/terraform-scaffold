@@ -53,3 +53,13 @@ variable "deployment_maximum_percent" {
   description = "The maximum percent of nodes to spin up when deploying"
   default = 200
 }
+
+variable "sns_alarm_enable" {
+  description = "Turn on utilization alarms"
+  default = 0
+}
+
+variable "sns_alarm_topic_arn" {
+  description = "sns topic to receive utilization alarms on"
+  default = ""
+}

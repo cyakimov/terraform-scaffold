@@ -135,3 +135,22 @@ resource "aws_ecs_service" "app-no-lb" {
   }
 
 }
+
+resource "aws_cloudwatch_metric_alarm" "memory-utilization" {
+  count = "${var.sns_alarm_enable}"
+  alarm_name = "${var.name_prefix}${var.name}-memory-utilization"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods = "1"
+  metric_name = "MemoryUtilization"
+  namespace = "AWS/ECS"
+  period = "60"
+  statistic = "Maximum"
+  threshold = "95"
+  alarm_description = "This metric monitors ecs memory utilization for ${var.name_prefix}${var.name}"
+  insufficient_data_actions = []
+  alarm_actions = ["${var.sns_alarm_topic_arn}"]
+  dimensions {
+      ClusterName = "${element(split("/", var.ecs_cluster_id), 1)}"
+      ServiceName = "${var.name_prefix}${var.name}"
+  }
+}
