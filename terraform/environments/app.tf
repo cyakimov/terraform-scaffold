@@ -1,3 +1,15 @@
+resource "aws_db_parameter_group" "myapp-rds" {
+  name = "${var.name_prefix}myapp"
+  family = "postgres9.4"
+  description = "RDS parameter group for myapp app"
+
+//  parameter {
+//    name = "statement_timeout"
+//    value = "3600"
+//    apply_method = "immediate"
+//  }
+}
+
 module "myapp-rds" {
   source = "../../modules/rds"
 
@@ -8,6 +20,13 @@ module "myapp-rds" {
   zone_id = "${module.core.internal_zone_id}"
   subnet_ids_csv = "${module.core.primary_private_subnet_id},${module.core.secondary_private_subnet_id}"
   security_groups_csv = "${module.core.default_security_group_id}"
+  parameter_group_name = "${aws_db_parameter_group.myapp-rds.name}"
+}
+
+resource "aws_elasticache_parameter_group" "myapp-redis" {
+  name = "${var.name_prefix}myapp-redis"
+  family = "redis2.8"
+  description = "${var.name_prefix}myapp-redis param group"
 }
 
 module "myapp-redis" {
@@ -20,6 +39,7 @@ module "myapp-redis" {
   zone_id = "${module.core.internal_zone_id}"
   subnet_ids_csv = "${module.core.primary_private_subnet_id},${module.core.secondary_private_subnet_id}"
   security_groups_csv = "${module.core.default_security_group_id}"
+  parameter_group_name = "${aws_elasticache_parameter_group.myapp-redis.name}"
 
   family = "redis2.8"
   engine = "redis"

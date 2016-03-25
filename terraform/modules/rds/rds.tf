@@ -1,52 +1,55 @@
-resource "aws_db_parameter_group" "app" {
-  name = "${var.name_prefix}${var.name}"
-  family = "postgres9.4"
-  description = "RDS parameter group for ${var.name} app"
-
-//  // These settings turn on db logging for performance analysis with a tool like
- //  // pgbadger
- //  //
- //  //  parameter {
- //  //    name = "log_statement"
- //  //    value = "none"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_min_duration_statement"
- //  //    value = "0"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_checkpoints"
- //  //    value = "on"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_connections"
- //  //    value = "on"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_disconnections"
- //  //    value = "on"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_lock_waits"
- //  //    value = "on"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_temp_files"
- //  //    value = "0"
- //  //    apply_method = "immediate"
- //  //  }
- //  //  parameter {
- //  //    name = "log_autovacuum_min_duration"
- //  //    value = "0"
- //  //    apply_method = "immediate"
- //  //  }
-}
+// Have to create this outside of module to allow editing for now
+// https://github.com/hashicorp/terraform/issues/3388
+//
+//resource "aws_db_parameter_group" "app" {
+//  name = "${var.name_prefix}${var.name}"
+//  family = "postgres9.3"
+//  description = "RDS parameter group for ${var.name} app"
+//
+////  // These settings turn on db logging for performance analysis with a tool like
+// //  // pgbadger
+// //  //
+// //  //  parameter {
+// //  //    name = "log_statement"
+// //  //    value = "none"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_min_duration_statement"
+// //  //    value = "0"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_checkpoints"
+// //  //    value = "on"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_connections"
+// //  //    value = "on"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_disconnections"
+// //  //    value = "on"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_lock_waits"
+// //  //    value = "on"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_temp_files"
+// //  //    value = "0"
+// //  //    apply_method = "immediate"
+// //  //  }
+// //  //  parameter {
+// //  //    name = "log_autovacuum_min_duration"
+// //  //    value = "0"
+// //  //    apply_method = "immediate"
+// //  //  }
+//}
 
 resource "aws_db_subnet_group" "app" {
   name = "${var.name_prefix}${var.name}"
@@ -63,14 +66,18 @@ resource "aws_db_subnet_group" "app" {
 
 resource "aws_db_instance" "app" {
   identifier = "${var.name_prefix}${var.name}"
-  engine = "postgres"
-  engine_version = "9.4.5"
+
+  engine = "${var.engine}"
+  engine_version = "${var.engine_version}"
+
   instance_class = "${var.db_instance_type}"
   allocated_storage = "${var.db_instance_storage}"
   storage_encrypted = "${var.encrypted}"
   storage_type = "${var.db_instance_storage_type}"
+  iops = "${var.db_instance_storage_iops}"
 
-  backup_retention_period = 3
+  multi_az = "${var.multi_az}"
+  backup_retention_period = "${var.backup_retention_period}"
   final_snapshot_identifier = "${var.name_prefix}${var.name}-final"
   skip_final_snapshot = false
   // Uncomment to rebuild from final if recreating
@@ -81,7 +88,7 @@ resource "aws_db_instance" "app" {
   name = "${var.db_name}"
 
   db_subnet_group_name = "${aws_db_subnet_group.app.name}"
-  parameter_group_name = "${aws_db_parameter_group.app.name}"
+  parameter_group_name = "${var.parameter_group_name}"
 
   vpc_security_group_ids = ["${compact(split(",", var.security_groups_csv))}"]
 

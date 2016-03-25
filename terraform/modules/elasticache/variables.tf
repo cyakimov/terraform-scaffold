@@ -22,8 +22,9 @@ variable "security_groups_csv" {
   description = "The security groups associated with the instance"
 }
 
-variable "family" {
-  description = "The elasticache family: memcached1.4, redis2.8, redis2.6"
+variable "parameter_group_name" {
+  description = "The parameter group associated with the instance"
+  default = ""
 }
 
 variable "engine" {

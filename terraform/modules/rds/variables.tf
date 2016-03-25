@@ -22,6 +22,21 @@ variable "security_groups_csv" {
   description = "The security groups associated with the instance"
 }
 
+variable "parameter_group_name" {
+  description = "The parameter group associated with the instance"
+  default = ""
+}
+
+variable "engine" {
+  description = "The database engine"
+  default = "postgres"
+}
+
+variable "engine_version" {
+  description = "The database engine version"
+  default = ""
+}
+
 variable "db_instance_type" {
   description = "The instance type for the database instance"
   default = "db.m3.medium"
@@ -37,6 +52,26 @@ variable "db_instance_storage_type" {
   default = "gp2"
 }
 
+variable "db_instance_storage_iops" {
+  description = "The iops if using provisioned iops (storage type = io1)"
+  default = ""
+}
+
+variable "multi_az" {
+  description = "Enable multi AZ for the database"
+  default = false
+}
+
+variable "backup_retention_period" {
+  description = "How long to keep backups"
+  default = 3
+}
+
+variable "encrypted" {
+  description = "Turn on database encryption"
+  default = false
+}
+
 variable "db_name" {
   description = "The name of the database"
   default = "postgres"
@@ -50,9 +85,4 @@ variable "db_username" {
 variable "db_password" {
   description = "The username for the database"
   default = "postgres"
-}
-
-variable "encrypted" {
-  description = "Turn on database encryption"
-  default = false
 }

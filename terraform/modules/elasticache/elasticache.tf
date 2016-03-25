@@ -1,8 +1,11 @@
-resource "aws_elasticache_parameter_group" "app" {
-  name = "${var.name_prefix}${var.name}"
-  family = "${var.family}"
-  description = "${var.name_prefix}${var.name} param group"
-}
+// Have to create this outside of module to allow editing for now
+// https://github.com/hashicorp/terraform/issues/3388
+//
+//resource "aws_elasticache_parameter_group" "app" {
+//  name = "${var.name_prefix}${var.name}"
+//  family = "${var.family}"
+//  description = "${var.name_prefix}${var.name} param group"
+//}
 
 resource "aws_elasticache_subnet_group" "app" {
   name = "${var.name_prefix}${var.name}"
@@ -19,7 +22,7 @@ resource "aws_elasticache_cluster" "app" {
 
   snapshot_retention_limit = "${var.snapshot_limit}"
 
-  parameter_group_name = "${aws_elasticache_parameter_group.app.name}"
+  parameter_group_name = "${var.parameter_group_name}"
   subnet_group_name = "${aws_elasticache_subnet_group.app.name}"
   security_group_ids = ["${compact(split(",", var.security_groups_csv))}"]
 }
