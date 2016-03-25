@@ -54,3 +54,8 @@ variable "ecs_instance_desired" {
   description = "The desired number of ecs instances"
   default = 4
 }
+
+variable "ecs_instance_user_data" {
+  description = "Extra user data script to add to the launchconfig for the ecs instances"
+  default = ""
+}

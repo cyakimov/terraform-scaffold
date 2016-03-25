@@ -138,6 +138,7 @@ resource "template_cloudinit_config" "ecs" {
     content = <<CONTENT
 #!/bin/bash
 echo ECS_CLUSTER=${aws_ecs_cluster.main.name} >> /etc/ecs/ecs.config
+${var.ecs_instance_user_data}
 CONTENT
   }
 
