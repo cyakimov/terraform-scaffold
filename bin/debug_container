@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+set -e
+
+function usage {
+  exec 1>&2
+  echo
+  echo "Usage: $(basename $0) [options] env cluster (svc:taskidx | container_id) [cmd]"
+  echo
+  echo " Runs the cmd (or bash if not supplied) on the given container, or subset"
+  echo " of containers if wildcards are used"
+  echo
+  echo " For example:"
+  echo
+  echo "   $(basename $0) production cluster-name service-name:0"
+  echo "   $(basename $0) production cluster-name c0nt41ner1d"
+  echo "   $(basename $0) production cluster-name service-name:* ps ax"
+  echo "   $(basename $0) production cluster-name \* bash -c \"env | grep foo\""
+  echo
+  echo "  Options:"
+  echo
+  echo "    -s          silence log output"
+  echo
+  exit 1
+}
+
+function log {
+  (($silent)) || echo "$@" 1>&2
+}
+
+typeset -i silent=0
+
+while getopts ":s" opt; do
+  case $opt in
+    s)
+      silent=1
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      ;;
+  esac
+done
+shift $((OPTIND-1))
+
+if [[ $# < 3 ]]; then
+  usage
+fi
+
+env=$1; shift
+cluster=$1; shift
+if [[ $1 =~ ":" ]]; then
+  service=${1%%:*}
+  taskidx=${1##*:}
+else
+  container_id=$1
+fi
+shift
+declare -a command
+command=("$@")
+test -z $command && command=(bash)
+
+if [[ $taskidx = "*" ]]; then
+  container_id="*"
+fi
+
+devops_dir=$(cd $(dirname $0)/..; pwd)
+source ${devops_dir}/bin/utils.sh
+
+discover_aws_credentials
+aws_assume_role $env ops-admin
+aws_env
+
+if [[ -n $container_id ]]; then
+
+  container_instance_arns=$(aws ecs list-container-instances --cluster $cluster --max-items 50 \
+    | jq -r '.containerInstanceArns | join(" ")'
+  )
+
+  instance_ids=$(aws ecs describe-container-instances \
+    --cluster $cluster --container-instances $container_instance_arns \
+    | jq -r '[.containerInstances[].ec2InstanceId] | join(" ")'
+  )
+
+  instance_ips=$(aws ec2 describe-instances --instance-ids $instance_ids \
+    | jq -r '[.Reservations[].Instances[].PrivateIpAddress] | join(" ")')
+
+
+  for instance_ip in $instance_ips; do
+
+    log "Connecting: ssh ec2-user@$instance_ip"
+
+    task_info=$(ssh -o "StrictHostKeyChecking=no" ec2-user@$instance_ip "curl -s http://localhost:51678/v1/tasks")
+
+    if [[ $service != "*" && $taskidx == "*" ]]; then
+      cids=$(echo "$task_info" \
+        | jq -r "[.Tasks[] | select(.KnownStatus == \"RUNNING\" and .Family == \"$service\").Containers[].DockerId] | join(\" \")"
+      )
+    else
+      cids=$(echo "$task_info" \
+        | jq -r "[.Tasks[] | select(.KnownStatus == \"RUNNING\").Containers[].DockerId] | join(\" \")"
+      )
+    fi
+
+    for cid in $cids; do
+
+      if [[ $container_id == "*" ]]; then
+        log "Executing '${command[@]}' on ${cid::12}"
+        ssh -t ec2-user@$instance_ip docker exec -it $cid "${command[@]}" || true
+        continue
+      elif [[ "$cid" =~ ^$container_id ]]; then
+        log "Found container $container_id, executing '${command[@]}'"
+        ssh -t ec2-user@$instance_ip docker exec -it $container_id "${command[@]}" || true
+        exit
+      fi
+
+    done
+
+    log "No container=$container_id running on $instance_ip"
+
+  done
+
+else
+
+  task_arns=$(aws ecs list-tasks --cluster $cluster --family $service --max-items 50)
+  task_arn_count=$(echo "$task_arns" | jq -r ".taskArns | length")
+  log "Found $task_arn_count tasks, proceeding with index: $taskidx"
+
+  task_arn=$(echo "$task_arns" | jq -r ".taskArns[$taskidx  ]")
+  log "Task is $task_arn"
+
+  task_desc=$(aws ecs describe-tasks --cluster $cluster --task $task_arn)
+  container_instance_arn=$(echo "$task_desc" | jq -r ".tasks[0].containerInstanceArn")
+  container_arn=$(echo "$task_desc" | jq -r ".tasks[0].containers[0].containerArn")
+  log "Container instance is $container_instance_arn"
+  log "Container is $container_arn"
+
+  instance_id=$(aws ecs describe-container-instances \
+    --cluster $cluster --container-instances $container_instance_arn \
+    | jq -r ".containerInstances[0].ec2InstanceId"
+  )
+  log "EC2 instance is $instance_id"
+
+  instance_ip=$(aws ec2 describe-instances --instance-ids $instance_id \
+    | jq -r ".Reservations[0].Instances[0].PrivateIpAddress")
+
+  log "Connecting: ssh ec2-user@$instance_ip"
+  task_info=$(ssh -o "StrictHostKeyChecking=no" ec2-user@$instance_ip "curl -s http://localhost:51678/v1/tasks?taskarn=$task_arn")
+  cid=$(echo "$task_info" | jq -r '.Containers[0].DockerId')
+  name=$(echo "$task_info" | jq -r '.Containers[0].DockerName')
+
+  log "Connecting to container $name (cid=${cid::12})"
+  ssh -t ec2-user@$instance_ip docker exec -it $cid "${command[@]}" || true
+
+fi
